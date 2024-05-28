@@ -23,7 +23,7 @@ const Pagination = () => {
           onClick={() => {
             
             if(productsLoaderData.page === 1){
-              return;
+              return;   
             }
             handlePageChange(productsLoaderData.page - 1)
             window.scrollTo(0, 0)
