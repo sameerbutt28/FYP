@@ -107,21 +107,21 @@ const Filters = () => {
         defaultValue="all"
       />
       {/* PRICE */}
-      <FormRange
+      {/* <FormRange
         name="price"
         label="select price"
         size="range-sm"
         price={2000}
-      />
+      /> */}
       {/* Date Picker */}
-      <FormDatePicker label="select minimum production date" name="date" />
+      {/* <FormDatePicker label="select minimum production date" name="date" /> */}
 
       {/* In stock */}
-      <FormCheckbox
+      {/* <FormCheckbox
         label="Only products in stock"
         name="stock"
         defaultValue="false"
-      />
+      /> */}
 
       {/* BUTTONS */}
 
