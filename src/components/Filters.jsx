@@ -72,7 +72,7 @@ const Filters = () => {
         label="search product"
         name="search"
         size="input-sm"
-        defaultValue=""
+        defaultValue="
       />
       {/* CATEGORIES */}
       <FormSelect  
