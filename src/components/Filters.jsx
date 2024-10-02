@@ -75,7 +75,7 @@ const Filters = () => {
         defaultValue=""
       />
       {/* CATEGORIES */}
-      <FormSelect
+      <FormSelect  
         label="select category"
         name="category"
         list={selectCategoryList}
