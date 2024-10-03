@@ -58,9 +58,15 @@ passport.use(new GoogleStrategy({
             const referralCode = profile.id;  // Use Google ID as the referral code
             let referredBy = null;  // Initialize referredBy as null
 
-            // Check if there's a referral code in the query parameters
-            if (this.req && this.req.query.ref) {
-                referredBy = this.req.query.ref; // Use the referral code from the query
+            // Check for referral code in the query parameters
+            if (profile._json.sub) {
+                const queryRef = profile._json.sub; // Extract referral code from profile
+
+                // Check if a user exists with the given referral code
+                const referrer = await User.findOne({ referralCode: queryRef });
+                if (referrer) {
+                    referredBy = referrer.referralCode; // Set referredBy to the referrer's Google ID
+                }
             }
 
             user = await new User({
@@ -96,9 +102,24 @@ passport.deserializeUser((id, done) => {
 });
 
 // Routes
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google', (req, res, next) => {
+    // Append the referral code to the Google authentication URL if it exists
+    const ref = req.query.ref;
+    if (ref) {
+        return passport.authenticate('google', { scope: ['profile', 'email'], state: ref })(req, res, next);
+    }
+    passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
 
 app.get('/auth/google/callback', 
+    (req, res, next) => {
+        // Retrieve the referral code from the state parameter
+        const referrerCode = req.query.state;
+        if (referrerCode) {
+            req.referrerCode = referrerCode; // Store it for later use
+        }
+        next();
+    },
     passport.authenticate('google', { failureRedirect: '/' }),
     (req, res) => {
         console.log('User Info:', req.user); // Log user info
