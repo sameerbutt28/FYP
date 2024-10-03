@@ -48,35 +48,38 @@ passport.use(new GoogleStrategy({
     scope: ['profile', 'email'], // Ensure this is included
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        // Check if user already exists in the database
+        // Check if user already exists in the database by Google ID
         let user = await User.findOne({ googleId: profile.id });
-        if (user) {
-            done(null, user); // User found, log them in
-        } else {
-            // If not, create a new user
-            const referralCode = profile.id; // Use Google ID as referral code
-            let referredBy = null;
+
+        // If user does not exist, treat them as a new user and create a new entry
+        if (!user) {
+            console.log('No existing user, creating new user...');
+
+            const referralCode = profile.id;  // Use Google ID as the referral code
+            let referredBy = null;  // Initialize referredBy as null
 
             // Check if there's a referral code in the query parameters
-            if (this.req.query.ref) {
-                const referrer = await User.findOne({ referralCode: this.req.query.ref });
-                if (referrer) {
-                    referredBy = referrer.referralCode; // Set the referredBy to the referrer’s referral code
-                }
+            if (this.req && this.req.query.ref) {
+                referredBy = this.req.query.ref; // Use the referral code from the query
             }
 
             user = await new User({
                 googleId: profile.id,
                 name: profile.displayName,
                 email: profile.emails[0].value,
-                profilePic: profile.photos[0].value,
-                referralCode, // Store referral code
-                referredBy, // Store who referred the user
+                profilePic: profile.photos[0].value, // Store profile picture URL
+                referralCode,  // Store referral code
+                referredBy     // Store who referred the user, if applicable
             }).save();
-            done(null, user); // New user created and logged in
+            
+            console.log('New user created:', user);
+        } else {
+            console.log('Existing user found:', user);
         }
+
+        done(null, user); // Log the user in, whether they're new or existing
     } catch (err) {
-        console.error(err);
+        console.error('Error in Google Strategy:', err);
         done(err, null);
     }
 }));
@@ -93,7 +96,7 @@ passport.deserializeUser((id, done) => {
 });
 
 // Routes
-app.get('/auth/google', passport.authenticate('google'));
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 app.get('/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),
@@ -121,22 +124,18 @@ app.get('/logout', (req, res) => {
 // Dashboard route to show users and referral stats
 app.get('/dashboard', async (req, res) => {
     if (req.isAuthenticated()) {
-        // Fetch all users and their referral stats
-        const users = await User.find({});
-        const dashboardData = await Promise.all(users.map(async user => {
-            const referredCount = await User.countDocuments({ referredBy: user.referralCode });
-            return {
-                name: user.name,
-                email: user.email,
-                profilePic: user.profilePic,
-                referralCode: user.referralCode,
-                referredCount,
-            };
-        }));
+        const { googleId, referralCode, name, email } = req.user;
+
+        // Check how many users have been referred by this user
+        const referredCount = await User.countDocuments({ referredBy: referralCode });
 
         // Render a dashboard with user data
         res.send(`
             <h1>Referral Dashboard</h1>
+            <h2>Welcome, ${name}!</h2>
+            <p>Email: ${email}</p>
+            <p>Your Referral Link: <a href="http://localhost:3000/auth/google?ref=${referralCode}">http://localhost:3000/auth/google?ref=${referralCode}</a></p>
+            <p>You have referred ${referredCount} user(s).</p>
             <table border="1" cellpadding="10">
                 <tr>
                     <th>Profile Picture</th>
@@ -145,15 +144,13 @@ app.get('/dashboard', async (req, res) => {
                     <th>Referral Code</th>
                     <th>Referred Users</th>
                 </tr>
-                ${dashboardData.map(user => `
-                    <tr>
-                        <td><img src="${user.profilePic}" alt="Profile Picture" style="width: 50px; height: 50px; border-radius: 25px;"/></td>
-                        <td>${user.name}</td>
-                        <td>${user.email}</td>
-                        <td>${user.referralCode}</td>
-                        <td>${user.referredCount}</td>
-                    </tr>
-                `).join('')}
+                <tr>
+                    <td><img src="${req.user.profilePic}" alt="Profile Picture" style="width: 50px; height: 50px; border-radius: 25px;"/></td>
+                    <td>${name}</td>
+                    <td>${email}</td>
+                    <td>${referralCode}</td>
+                    <td>${referredCount}</td>
+                </tr>
             </table>
             <br/>
             <a href="/logout">Logout</a>
