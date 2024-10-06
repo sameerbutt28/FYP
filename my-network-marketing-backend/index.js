@@ -172,7 +172,7 @@ app.get('/dashboard', async (req, res) => {
                     <td>${referralCode}</td>
                     <td>${referredCount}</td>
                 </tr>
-            </table>     
+            </table>       
             <br/>
             <a href="/logout">Logout</a>
         `); 
