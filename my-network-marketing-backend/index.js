@@ -175,7 +175,7 @@ app.get('/dashboard', async (req, res) => {
             </table>
             <br/>
             <a href="/logout">Logout</a>
-        `);
+        `); 
     } else {
         res.redirect('/');
     }
