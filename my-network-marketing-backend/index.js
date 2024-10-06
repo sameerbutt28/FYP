@@ -150,7 +150,7 @@ app.get('/dashboard', async (req, res) => {
         const referredUsers = await User.find({ referredBy: referralCode });
 
         // Render a dashboard with user data
-        res.send(`
+        res.send(
             <h1>Referral Dashboard</h1>
             <h2>Welcome, ${name}!</h2>
             <p>Email: ${email}</p>
@@ -164,18 +164,18 @@ app.get('/dashboard', async (req, res) => {
                     <th>Referral Code</th>
                     <th>Referred Users</th>
                 </tr>
-                ${referredUsers.map(user => `
+                ${referredUsers.map(user => 
                     <tr>
                         <td><img src="${user.profilePic}" alt="Profile Picture" style="width: 50px; height: 50px; border-radius: 25px;"/></td>
                         <td>${user.name}</td>
                         <td>${user.email}</td>
                         <td>${user.referralCode}</td>
                         <td>${user.referredBy || 'N/A'}</td>
-                    </tr>`).join('')}
+                    </tr>).join('')}
             </table>       
             <br/>
             <a href="/logout">Logout</a>
-        `);
+        );
     } else {
         res.redirect('/');
     }
@@ -184,6 +184,5 @@ app.get('/dashboard', async (req, res) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(Server running on port ${PORT});
 });
-            
