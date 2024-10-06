@@ -20,14 +20,13 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // MongoDB connection
-mongoose.connect('mongodb://localhost:27017/yourdbname', { // Replace 'yourdbname' with your actual database name
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => {
-    console.log('Connected to MongoDB');
-}).catch(err => {
-    console.error('MongoDB connection error:', err);
-});
+mongoose.connect('mongodb://localhost:27017/yourdbname')
+    .then(() => {
+        console.log('Connected to MongoDB');
+    })
+    .catch(err => {
+        console.error('MongoDB connection error:', err);
+    });
 
 // User schema and model
 const UserSchema = new mongoose.Schema({
@@ -60,10 +59,10 @@ passport.use(new GoogleStrategy({
             const referralCode = uuidv4();
             let referredBy = null;  // Initialize referredBy as null
 
-            // Check for referral code in the state (query parameter)
-            const referrerCode = profile._json.sub || null;
+            // Retrieve the referral code passed in the state (from the query parameter during login)
+            const referrerCode = profile._json.sub || profile.referrerCode || null; // added fallback referrerCode
 
-            // If there is a referral code (referrerCode) in the state, check if a referrer exists
+            // If there is a referral code in the state, check if a referrer exists
             if (referrerCode) {
                 const referrer = await User.findOne({ referralCode: referrerCode });
                 if (referrer) {
@@ -108,22 +107,21 @@ passport.deserializeUser((id, done) => {
 app.get('/auth/google', (req, res, next) => {
     const ref = req.query.ref;
     if (ref) {
-        return passport.authenticate('google', { scope: ['profile', 'email'], state: ref })(req, res, next);
+        // Store referral code in session to access it after Google authentication
+        req.session.referrerCode = ref;
+        return passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
     }
     passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 });
 
 app.get('/auth/google/callback', 
-    (req, res, next) => {
-        const referrerCode = req.query.state;
-        if (referrerCode) {
-            req.referrerCode = referrerCode;
-        }
-        next();
-    },
     passport.authenticate('google', { failureRedirect: '/' }),
     (req, res) => {
-        console.log('User Info:', req.user);
+        // Pass referral code from session to profile for use during user creation
+        if (req.session.referrerCode) {
+            req.user.referrerCode = req.session.referrerCode;
+            delete req.session.referrerCode;  // Clear referral code after use
+        }
         res.redirect('/dashboard');
     }
 );
@@ -172,7 +170,7 @@ app.get('/dashboard', async (req, res) => {
                         <td>${user.name}</td>
                         <td>${user.email}</td>
                         <td>${user.referralCode}</td>
-                        <td>N/A</td>
+                        <td>${user.referredBy || 'N/A'}</td>
                     </tr>`).join('')}
             </table>       
             <br/>
@@ -188,4 +186,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-    
+            
