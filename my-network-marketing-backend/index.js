@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
+const { v4: uuidv4 } = require('uuid'); // Import the uuid package to generate unique referral codes
 
 const app = express();
 
@@ -35,7 +36,7 @@ const UserSchema = new mongoose.Schema({
     email: String,
     profilePic: String,
     referralCode: { type: String, unique: true }, // Unique referral code
-    referredBy: String, // Field to store who referred this user
+    referredBy: String, // Field to store the referral code of who referred this user
 });
 
 const User = mongoose.model('User', UserSchema);
@@ -45,7 +46,7 @@ passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: "/auth/google/callback",
-    scope: ['profile', 'email'], // Ensure this is included
+    scope: ['profile', 'email'],
 }, async (accessToken, refreshToken, profile, done) => {
     try {
         // Check if user already exists in the database by Google ID
@@ -55,30 +56,32 @@ passport.use(new GoogleStrategy({
         if (!user) {
             console.log('No existing user, creating new user...');
 
-            const referralCode = profile.id;  // Use Google ID as the referral code
+            // Generate a unique referral code using uuid
+            const referralCode = uuidv4();
             let referredBy = null;  // Initialize referredBy as null
 
-            // Check for referral code in the query parameters
-            if (profile._json.sub) {
-                const queryRef = profile._json.sub; // Extract referral code from profile
+            // Check for referral code in the state (query parameter)
+            const referrerCode = profile._json.sub || null;
 
-                // Check if a user exists with the given referral code
-                const referrer = await User.findOne({ referralCode: queryRef });
+            // If there is a referral code (referrerCode) in the state, check if a referrer exists
+            if (referrerCode) {
+                const referrer = await User.findOne({ referralCode: referrerCode });
                 if (referrer) {
-                    referredBy = referrer.referralCode; // Set referredBy to the referrer's Google ID
+                    referredBy = referrer.referralCode; // Set referredBy to the referrer's referralCode
                 }
             }
 
+            // Save the new user with referral information
             user = await new User({
                 googleId: profile.id,
                 name: profile.displayName,
                 email: profile.emails[0].value,
                 profilePic: profile.photos[0].value, // Store profile picture URL
-                referralCode,  // Store referral code
+                referralCode,  // Store the generated unique referral code
                 referredBy     // Store who referred the user, if applicable
             }).save();
-            
-            console.log('New user created:', user);
+
+            console.log('New user created with referral:', user);
         } else {
             console.log('Existing user found:', user);
         }
@@ -103,7 +106,6 @@ passport.deserializeUser((id, done) => {
 
 // Routes
 app.get('/auth/google', (req, res, next) => {
-    // Append the referral code to the Google authentication URL if it exists
     const ref = req.query.ref;
     if (ref) {
         return passport.authenticate('google', { scope: ['profile', 'email'], state: ref })(req, res, next);
@@ -113,17 +115,16 @@ app.get('/auth/google', (req, res, next) => {
 
 app.get('/auth/google/callback', 
     (req, res, next) => {
-        // Retrieve the referral code from the state parameter
         const referrerCode = req.query.state;
         if (referrerCode) {
-            req.referrerCode = referrerCode; // Store it for later use
+            req.referrerCode = referrerCode;
         }
         next();
     },
     passport.authenticate('google', { failureRedirect: '/' }),
     (req, res) => {
-        console.log('User Info:', req.user); // Log user info
-        res.redirect('/dashboard'); // Redirect to dashboard after successful login
+        console.log('User Info:', req.user);
+        res.redirect('/dashboard');
     }
 );
 
@@ -147,8 +148,8 @@ app.get('/dashboard', async (req, res) => {
     if (req.isAuthenticated()) {
         const { googleId, referralCode, name, email } = req.user;
 
-        // Check how many users have been referred by this user
-        const referredCount = await User.countDocuments({ referredBy: referralCode });
+        // Query how many users this person has referred
+        const referredUsers = await User.find({ referredBy: referralCode });
 
         // Render a dashboard with user data
         res.send(`
@@ -156,7 +157,7 @@ app.get('/dashboard', async (req, res) => {
             <h2>Welcome, ${name}!</h2>
             <p>Email: ${email}</p>
             <p>Your Referral Link: <a href="http://localhost:3000/auth/google?ref=${referralCode}">http://localhost:3000/auth/google?ref=${referralCode}</a></p>
-            <p>You have referred ${referredCount} user(s).</p>
+            <p>You have referred ${referredUsers.length} user(s).</p>
             <table border="1" cellpadding="10">
                 <tr>
                     <th>Profile Picture</th>
@@ -165,17 +166,18 @@ app.get('/dashboard', async (req, res) => {
                     <th>Referral Code</th>
                     <th>Referred Users</th>
                 </tr>
-                <tr>
-                    <td><img src="${req.user.profilePic}" alt="Profile Picture" style="width: 50px; height: 50px; border-radius: 25px;"/></td>
-                    <td>${name}</td>
-                    <td>${email}</td>
-                    <td>${referralCode}</td>
-                    <td>${referredCount}</td>
-                </tr>
+                ${referredUsers.map(user => `
+                    <tr>
+                        <td><img src="${user.profilePic}" alt="Profile Picture" style="width: 50px; height: 50px; border-radius: 25px;"/></td>
+                        <td>${user.name}</td>
+                        <td>${user.email}</td>
+                        <td>${user.referralCode}</td>
+                        <td>N/A</td>
+                    </tr>`).join('')}
             </table>       
             <br/>
             <a href="/logout">Logout</a>
-        `); 
+        `);
     } else {
         res.redirect('/');
     }
@@ -186,3 +188,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+    
