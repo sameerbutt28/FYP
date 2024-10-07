@@ -173,7 +173,7 @@ app.get('/dashboard', async (req, res) => {
                         <td>${user.referredBy || 'N/A'}</td>
                     </tr>).join('')}
             </table>       
-            <br/>
+            <br/>  
             <a href="/logout">Logout</a>
         ); 
     } else {
