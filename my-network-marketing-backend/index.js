@@ -20,7 +20,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // MongoDB connection
-mongoose.connect('mongodb://localhost:27017/yourdbname')
+mongoose.connect('mongodb://localhost:27017/yourdbname', { useNewUrlParser: true, useUnifiedTopology: true })
     .then(() => {
         console.log('Connected to MongoDB');
     })
@@ -36,9 +36,10 @@ const UserSchema = new mongoose.Schema({
     profilePic: String,
     referralCode: { type: String, unique: true }, // Unique referral code
     referredBy: String, // Field to store the referral code of who referred this user
+    referredUsers: [{ type: String }] // Field to store the referral codes of users referred by this user
 });
 
-const User = mongoose.model('User', UserSchema);
+const User = mongoose.model('User ', UserSchema);
 
 // Passport configuration
 passport.use(new GoogleStrategy({
@@ -46,7 +47,7 @@ passport.use(new GoogleStrategy({
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: "/auth/google/callback",
     scope: ['profile', 'email'],
-}, async (accessToken, refreshToken, profile, done) => {
+}, async (accessToken, refreshToken, profile, cb) => {
     try {
         // Check if user already exists in the database by Google ID
         let user = await User.findOne({ googleId: profile.id });
@@ -59,8 +60,8 @@ passport.use(new GoogleStrategy({
             const referralCode = uuidv4();
             let referredBy = null;  // Initialize referredBy as null
 
-            // Retrieve the referral code passed in the state (from the query parameter during login)
-            const referrerCode = profile._json.sub || profile.referrerCode || null; // added fallback referrerCode
+            // Retrieve the referral code passed in the session (from the query parameter during login)
+            const referrerCode = profile.referrerCode || null;
 
             // If there is a referral code in the state, check if a referrer exists
             if (referrerCode) {
@@ -77,7 +78,8 @@ passport.use(new GoogleStrategy({
                 email: profile.emails[0].value,
                 profilePic: profile.photos[0].value, // Store profile picture URL
                 referralCode,  // Store the generated unique referral code
-                referredBy     // Store who referred the user, if applicable
+                referredBy,     // Store who referred the user, if applicable
+                referredUsers: [] // Initialize referred users array
             }).save();
 
             console.log('New user created with referral:', user);
@@ -85,22 +87,22 @@ passport.use(new GoogleStrategy({
             console.log('Existing user found:', user);
         }
 
-        done(null, user); // Log the user in, whether they're new or existing
+        cb(null, user); // Log the user in, whether they're new or existing
     } catch (err) {
         console.error('Error in Google Strategy:', err);
-        done(err, null);
+        cb(err, null);
     }
 }));
 
 // Serialize and deserialize user
-passport.serializeUser((user, done) => {
+passport.serializeUser ((user, done) => {
     done(null, user.id);
 });
 
-passport.deserializeUser((id, done) => {
-    User.findById(id).then(user => {
-        done(null, user);
-    });
+passport.deserializeUser ((id, done) => {
+    User.findById(id)
+        .then(user => done(null, user))
+        .catch(err => done(err, null));
 });
 
 // Routes
@@ -109,7 +111,6 @@ app.get('/auth/google', (req, res, next) => {
     if (ref) {
         // Store referral code in session to access it after Google authentication
         req.session.referrerCode = ref;
-        return passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
     }
     passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 });
@@ -117,10 +118,9 @@ app.get('/auth/google', (req, res, next) => {
 app.get('/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),
     (req, res) => {
-        // Pass referral code from session to profile for use during user creation
+        // Clear referral code from session after use
         if (req.session.referrerCode) {
-            req.user.referrerCode = req.session.referrerCode;
-            delete req.session.referrerCode;  // Clear referral code after use
+            delete req.session.referrerCode;
         }
         res.redirect('/dashboard');
     }
@@ -129,11 +129,11 @@ app.get('/auth/google/callback',
 // Home route (to test if server is running)
 app.get('/', (req, res) => {
     res.send('<h1>Home Page</h1><a href="/auth/google">Login with Google</a>');
-});
+ });
 
 // Logout route
-app.get('/logout', (req, res) => {
-    req.logout(err => {
+app.get('/logout', (req, res, next) => {
+    req.session.destroy((err) => {
         if (err) {
             return next(err);
         }
@@ -149,8 +149,8 @@ app.get('/dashboard', async (req, res) => {
         // Query how many users this person has referred
         const referredUsers = await User.find({ referredBy: referralCode });
 
-        // Render a dashboard with user data
-        res.send(
+        // Render a dashboard with user data (plain HTML instead of JSX)
+        const html = `
             <h1>Referral Dashboard</h1>
             <h2>Welcome, ${name}!</h2>
             <p>Email: ${email}</p>
@@ -165,17 +165,18 @@ app.get('/dashboard', async (req, res) => {
                     <th>Referred Users</th>
                 </tr>
                 ${referredUsers.map(user => 
-                    <tr>
+                    `<tr>
                         <td><img src="${user.profilePic}" alt="Profile Picture" style="width: 50px; height: 50px; border-radius: 25px;"/></td>
                         <td>${user.name}</td>
                         <td>${user.email}</td>
                         <td>${user.referralCode}</td>
                         <td>${user.referredBy || 'N/A'}</td>
-                    </tr>).join('')}
-            </table>       
-            <br/>  
+                    </tr>`).join('')}
+            </table>
+            <br/>
             <a href="/logout">Logout</a>
-        );   
+        `;
+        res.send(html);
     } else {  
         res.redirect('/');
     }
@@ -184,5 +185,5 @@ app.get('/dashboard', async (req, res) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(Server running on port ${PORT});
+    console.log(`Server running on port ${PORT}`);
 });
