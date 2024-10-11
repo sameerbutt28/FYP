@@ -189,7 +189,7 @@ app.get('/logout', (req, res) => {
         if (err) return next(err);
         res.redirect('/');
     });
-});
+});          
 
 // Start the server
 const PORT = process.env.PORT || 3000;
