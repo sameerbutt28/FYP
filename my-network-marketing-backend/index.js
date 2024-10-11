@@ -182,7 +182,7 @@ app.post('/referral/link', async (req, res) => {
         res.send('An error occurred while linking the referral.');
     }
 });     
-       
+        
 // Logout route
 app.get('/logout', (req, res) => {
     req.logout(err => {
