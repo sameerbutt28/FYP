@@ -1,3 +1,4 @@
+const { initiatePayment, handlePaymentSuccess } = require('./models/Order'); // Import payment logic
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -5,6 +6,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const { v4: uuidv4 } = require('uuid'); // To generate unique referral codes
+const User = require('./models/User'); // Import user model
 
 const app = express();
 
@@ -20,26 +22,16 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => {
-        console.log('Connected to MongoDB');
-    })
-    .catch(err => {
-        console.error('MongoDB connection error:', err);
-    });
-
-// User schema and model
-const UserSchema = new mongoose.Schema({
-    googleId: String,
-    name: String,
-    email: String,
-    profilePic: String,
-    referralCode: { type: String, unique: true },
-    referredBy: String, // Stores the referrer's referral code
-    referredUsers: [{ type: String }] // Stores the referral codes of users referred by this user
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => {
+    console.log('Connected to MongoDB');
+})
+.catch(err => {
+    console.error('MongoDB connection error:', err);
 });
-
-const User = mongoose.model('User', UserSchema);
 
 // Passport Google OAuth configuration
 passport.use(new GoogleStrategy({
@@ -49,34 +41,27 @@ passport.use(new GoogleStrategy({
     scope: ['profile', 'email'],
 }, async (accessToken, refreshToken, profile, cb) => {
     try {
-        // Check if user exists in the database
         let user = await User.findOne({ googleId: profile.id });
 
         if (!user) {
-            // Generate a unique referral code for new users
-            const referralCode = uuidv4();
-
-            // Create a new user instance
+            const referralCode = uuidv4(); // Generate unique referral code for new users
             user = new User({
                 googleId: profile.id,
                 name: profile.displayName,
                 email: profile.emails[0].value,
                 profilePic: profile.photos[0].value,
                 referralCode,
-                referredBy: null, // Initially no referrer
-                referredUsers: [] // No referred users at this time
+                referredBy: null,
+                referredUsers: []
             });
-
-            // Save the new user to the database
             await user.save();
             console.log('New user created:', user);
         } else {
-            console.log('Existing user found:', user); // Log existing user for debugging
+            console.log('Existing user found:', user);
         }
-        
         cb(null, user); // Pass the user to the next middleware
     } catch (err) {
-        console.error('Error in Google Strategy:', err); // Log any errors
+        console.error('Error in Google Strategy:', err);
         cb(err, null); // Pass the error to the callback
     }
 }));
@@ -94,7 +79,7 @@ passport.deserializeUser((id, done) => {
 
 // Routes
 
-// Home route (display Google login)
+// Home route
 app.get('/', (req, res) => {
     const html = `
         <h1>Welcome to the Referral System</h1>
@@ -114,7 +99,7 @@ app.get('/auth/google/callback',
     }
 );
 
-// Dashboard route (shows referral code and input to link referral)
+// Dashboard route
 app.get('/dashboard', async (req, res) => {
     if (!req.isAuthenticated()) {
         return res.redirect('/');
@@ -122,7 +107,7 @@ app.get('/dashboard', async (req, res) => {
 
     const user = req.user;
     const referredUsers = await User.find({ referredBy: user.referralCode });
-    
+
     const html = `
         <h1>Referral Dashboard</h1>
         <h2>Welcome, ${user.name}!</h2>
@@ -155,23 +140,19 @@ app.post('/referral/link', async (req, res) => {
     const { referrerCode } = req.body;
     const user = req.user;
 
-    // Prevent adding another referrer if already referred
     if (user.referredBy) {
         return res.send('You have already been referred by someone.');
     }
 
     try {
-        // Find the referrer by referral code
         const referrer = await User.findOne({ referralCode: referrerCode });
         if (!referrer) {
             return res.send('Invalid referral code.');
         }
 
-        // Link the user to the referrer
         user.referredBy = referrerCode;
         referrer.referredUsers.push(user.referralCode);
 
-        // Save both user and referrer data
         await user.save();
         await referrer.save();
 
@@ -181,18 +162,36 @@ app.post('/referral/link', async (req, res) => {
         console.error('Error linking referral:', err);
         res.send('An error occurred while linking the referral.');
     }
-});     
-             
+});
+
+// Payment route
+app.post('/pay', async (req, res) => {
+    const { amount, phone, description, userId } = req.body;
+
+    try {
+        const paymentResponse = await initiatePayment(amount, userId, phone, description);
+        res.json(paymentResponse);
+    } catch (err) {
+        res.status(500).json({ error: 'Payment failed' });
+    }
+});
+
+// Payment success callback
+app.post('/payment/success', async (req, res) => {
+    await handlePaymentSuccess(req, res);
+});
+
 // Logout route
 app.get('/logout', (req, res) => {
     req.logout(err => {
         if (err) return next(err);
         res.redirect('/');
     });
-});          
+});
 
 // Start the server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080; // Change to 8080
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+                
