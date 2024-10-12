@@ -95,9 +95,12 @@ app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'em
 app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/' }),
     (req, res) => {
-        res.redirect('/dashboard');
+        // After successful login, redirect to the React app
+        const redirectUrl = `http://localhost:5173/profile?name=${encodeURIComponent(req.user.name)}&email=${encodeURIComponent(req.user.email)}&referrals=${req.user.referredUsers.length}`;
+        res.redirect(redirectUrl);
     }
 );
+
 
 // Dashboard route
 app.get('/dashboard', async (req, res) => {
@@ -190,8 +193,7 @@ app.get('/logout', (req, res) => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 8080; // Change to 8080
+const PORT = process.env.PORT || 3000; // Change to 8080
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
-                

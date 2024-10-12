@@ -1,4 +1,6 @@
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import Profile from './pages/Profile'; // Make sure this path is correct based on your file structure
+
 import {
   About,
   Cart,
@@ -10,7 +12,7 @@ import {
   Shop,
   SingleProduct,
   Wishlist,
-  Profile,
+  //Profile, Importing Profile component
   Search,
   ThankYou,
   OrderHistory
@@ -33,8 +35,7 @@ const router = createBrowserRouter([
       {
         path: "shop",
         element: <Shop />,
-        loader: shopLoader
-
+        loader: shopLoader,
       },
       {
         path: "shop/product/:id",
@@ -70,20 +71,20 @@ const router = createBrowserRouter([
         element: <Wishlist />,
       },
       {
-        path: "user-profile",
+        path: "profile", // Ensure this is the route where you want to access the Profile
         element: <Profile />,
       },
       {
-        path:"search",
-        element: <Search />
+        path: "search",
+        element: <Search />,
       },
       {
-        path:"thank-you",
-        element: <ThankYou />
+        path: "thank-you",
+        element: <ThankYou />,
       },
       {
-        path:"order-history",
-        element: <OrderHistory />
+        path: "order-history",
+        element: <OrderHistory />,
       }
     ],
   },
