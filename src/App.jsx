@@ -1,6 +1,5 @@
-import { RouterProvider, createBrowserRouter } from "react-router-dom";
-import Profile from './pages/Profile'; // Ensure this path matches your file structure
-
+import React from "react";
+import { createBrowserRouter, RouterProvider } from "react-router-dom"; // Import the necessary components
 import {
   About,
   Cart,
@@ -9,18 +8,20 @@ import {
   Landing,
   Login,
   Register,
+  Profile,
   Shop,
   SingleProduct,
   Wishlist,
   Search,
   ThankYou,
-  OrderHistory
+  OrderHistory,
 } from "./pages";
 import { landingLoader } from "./pages/Landing";
 import { singleProductLoader } from "./pages/SingleProduct";
 import { shopLoader } from "./pages/Shop";
 import { ToastContainer } from "react-toastify";
 
+// Define the router
 const router = createBrowserRouter([
   {
     path: "/",
@@ -103,4 +104,3 @@ function App() {
 }
 
 export default App;
-                

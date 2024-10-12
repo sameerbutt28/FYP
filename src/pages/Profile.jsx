@@ -236,8 +236,6 @@
 // export default Profile;
 
 
-
-
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -254,12 +252,14 @@ const Profile = () => {
     const [referralLink, setReferralLink] = useState('');
     const [newReferralCode, setNewReferralCode] = useState('');
 
+    // Generate the referral link when the referral code is available
     useEffect(() => {
         if (referralCode) {
             setReferralLink(`http://localhost:5173/register?referralCode=${referralCode}`);
         }
     }, [referralCode]);
 
+    // Fetch referred users
     const fetchReferredUsers = async () => {
         try {
             const response = await axios.get(`http://localhost:3000/api/referred-users?referralCode=${referralCode}`);
@@ -269,27 +269,29 @@ const Profile = () => {
         }
     };
 
+    // Fetch referred users when the referral code changes
     useEffect(() => {
         if (referralCode) {
             fetchReferredUsers();
         }
     }, [referralCode]);
 
+    // Handle submission of new referral code
     const handleReferralSubmit = async (e) => {
-      e.preventDefault();
-      try {
-          const response = await axios.post('http://localhost:3000/referral/link', 
-              { referrerCode: newReferralCode }, 
-              { withCredentials: true } // Ensure credentials are sent
-          );
-          alert(response.data); // Handle success message
-          setNewReferralCode(''); // Clear input after submission
-      } catch (error) {
-          console.error("Error linking referral:", error);
-          alert("Error linking referral: " + error.response?.data || "Unknown error");
-      }
-  };
-  
+        e.preventDefault();
+        try {
+            const response = await axios.post('http://localhost:3000/referral/link', 
+                { referrerCode: newReferralCode }, 
+                { withCredentials: true } // Ensure credentials are sent
+            );
+            alert(response.data); // Handle success message
+            setNewReferralCode(''); // Clear input after submission
+        } catch (error) {
+            console.error("Error linking referral:", error);
+            alert("Error linking referral: " + error.response?.data || "Unknown error");
+        }
+    };
+
     return (
         <div className="profile-container">
             <h1>User Profile</h1>
