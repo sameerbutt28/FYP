@@ -49,7 +49,7 @@ async function handlePaymentSuccess(req, res) {
     const { amount, userId } = req.body; // Adjust according to the success response
     // You might need to perform additional validation here based on your payment provider's response
 
-    try {
+    try { 
         await distributeCommission(userId, amount); // Distribute commission upon successful payment
         res.status(200).json({ success: true, message: 'Payment was successful' });
     } catch (err) {
