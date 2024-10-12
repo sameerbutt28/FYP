@@ -10,7 +10,7 @@ import {
   Login,
   Register,
   Shop,
-  SingleProduct,
+  SingleProduct,                  
   Wishlist,
   //Profile, Importing Profile component
   Search,
