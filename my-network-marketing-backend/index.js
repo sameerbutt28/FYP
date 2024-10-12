@@ -137,7 +137,7 @@ app.post('/referral/link', async (req, res) => {
     if (!user) {
         return res.status(403).json("User not authenticated");
     }
-
+  
     try {
         // Update the current user's referredBy field with the provided referrerCode
         user.referredBy = referrerCode;
@@ -148,7 +148,7 @@ app.post('/referral/link', async (req, res) => {
         res.status(500).json({ error: "Error linking referral code" });
     }
 });
-            
+
 app.use(cors({
     origin: 'http://localhost:5173', // Your React app's URL
     credentials: true, // Allow credentials (cookies, authorization headers, etc.)
