@@ -19,11 +19,11 @@ import { clearWishlist, updateWishlist } from "../features/wishlist/wishlistSlic
 const Header = () => {
   const { amount } = useSelector((state) => state.cart);
   const { total } = useSelector((state) => state.cart);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [id, setId] = useState(localStorage.getItem("id"));
+  // const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // const [id, setId] = useState(localStorage.getItem("id"));
   const dispatch = useDispatch();
-  const { darkMode } = useSelector((state) => state.auth);
-
+  // const { darkMode } = useSelector((state) => state.auth);
+  const { darkMode, isLoggedIn, userId } = useSelector((state) => state.auth);
   const loginState = useSelector((state) => state.auth.isLoggedIn);
 
 
@@ -45,12 +45,15 @@ const Header = () => {
 
 
 
-  useEffect(() => {
-    setIsLoggedIn(loginState);
+useEffect(() => {
+  fetchWishlist();
+}, [isLoggedIn]);
+  // useEffect(() => {
+  //   setIsLoggedIn(loginState);
 
-      fetchWishlist();
+  //     fetchWishlist();
     
-  }, [loginState]);
+  // }, [loginState]);        
 
   return (
     <>
@@ -65,7 +68,7 @@ const Header = () => {
           <li>
             <FaRegEnvelope className="text-2xl max-sm:text-lg text-accent-content" />{" "}
             <span className="text-2xl max-sm:text-lg text-accent-content">
-sameermodemesh@gmail.com            </span>
+modemesh28@gmail.com            </span>
           </li>
         </ul>
       </div>
@@ -265,9 +268,9 @@ ModeMesh
               <NavLink className="text-accent-content" to="/login">
                 Login
               </NavLink>
-              <NavLink className="text-accent-content" to="/register">
+              {/* <NavLink className="text-accent-content" to="/register">
                 Register
-              </NavLink>
+              </NavLink> */}
             </>
           )}
         </div>
