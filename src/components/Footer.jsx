@@ -25,7 +25,7 @@ const Footer = () => {
         </Link>
         {!loginState && (
           <>
-            <Link
+            {/* <Link
               to="/login"
               className="link link-hover text-2xl max-md:text-xl text-accent-content"
               onClick={() => window.scrollTo(0, 0)}
@@ -38,7 +38,7 @@ const Footer = () => {
               onClick={() => window.scrollTo(0, 0)}
             >
               Register
-            </Link>
+            </Link> */}
           </>
         )}
       </nav>
