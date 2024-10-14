@@ -9,7 +9,7 @@ require('dotenv').config();
 const cors = require('cors'); // Import CORS for cross-origin requests
 
 const app = express();
-
+        
 // Middleware setup
 app.use(cors({
     origin: 'http://localhost:5173', // React app's URL
