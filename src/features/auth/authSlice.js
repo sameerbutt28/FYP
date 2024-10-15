@@ -35,4 +35,3 @@ export const { loginUser, logoutUser, changeMode } = authSlice.actions;
 
 // Export the reducer
 export default authSlice.reducer;
-      
