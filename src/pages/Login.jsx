@@ -124,7 +124,8 @@
 // };
 
 // export default Login;
-import  { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
 import { SectionTitle } from "../components";
 import { toast } from "react-toastify";
@@ -140,7 +141,7 @@ const Login = () => {
   useEffect(() => {
     if (loginState) {
       localStorage.clear();
-      store.dispatch(logoutUser());
+      store.dispatch(logoutUser()); 
     }
   }, []);
 
@@ -185,6 +186,6 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Login; 
 
 

@@ -1,6 +1,4 @@
-import { RouterProvider, createBrowserRouter } from "react-router-dom";
-import Profile from './pages/Profile'; // Ensure this path matches your file structure
-
+  import { createBrowserRouter, RouterProvider } from "react-router-dom"; // Import the necessary components
 import {
   About,
   Cart,
@@ -9,10 +7,10 @@ import {
   Landing,
   Login,
   Register,
+  Profile,
   Shop,
-  SingleProduct,                  
+  SingleProduct,
   Wishlist,
-  //Profile, Importing Profile component
   Search,
   ThankYou,
   OrderHistory,
@@ -72,7 +70,7 @@ const router = createBrowserRouter([
         element: <Wishlist />,
       },
       {
-        path: "profile", // Ensure this is the route where you want to access the Profile
+        path: "profile", // Updated path for Profile page
         element: <Profile />,
       },
       {
@@ -86,7 +84,11 @@ const router = createBrowserRouter([
       {
         path: "order-history",
         element: <OrderHistory />,
-      }
+      },
+      {
+        path: "user-profile", // Add a specific route for user profile
+        element: <Profile />,
+      },
     ],
   },
 ]);
@@ -100,4 +102,4 @@ function App() {
   );
 }
 
-export default App;
+export default App; 
