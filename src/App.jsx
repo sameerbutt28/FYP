@@ -9,7 +9,6 @@ import {
   Landing,
   Login,
   Register,
-  Profile,
   Shop,
   SingleProduct,                  
   Wishlist,
