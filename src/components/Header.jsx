@@ -45,15 +45,15 @@ const Header = () => {
 
 
 
-useEffect(() => {
-  fetchWishlist();
-}, [isLoggedIn]);
-  // useEffect(() => {
-  //   setIsLoggedIn(loginState);
+// useEffect(() => {
+//   fetchWishlist();
+// }, [isLoggedIn]);
+  useEffect(() => {
+    setIsLoggedIn(loginState);
 
-  //     fetchWishlist();
+      fetchWishlist();
     
-  // }, [loginState]);        
+  }, [loginState]);        
 
   return (
     <>
