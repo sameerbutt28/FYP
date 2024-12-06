@@ -1,22 +1,28 @@
-const { initiatePayment, handlePaymentSuccess } = require('./models/Order'); // Import payment logic
-require('dotenv').config();
+//TEMP BACKEND CODE WITH ADMIN DASHBOARD WORKING 
 const express = require('express');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
-const { v4: uuidv4 } = require('uuid'); // To generate unique referral codes
-const User = require('./models/User'); // Import user model
+const { v4: uuidv4 } = require('uuid');
+const User = require('./models/User');
+require('dotenv').config();
+const cors = require('cors'); // Import CORS for cross-origin requests
 
 const app = express();
-
+        
 // Middleware setup
+app.use(cors({
+    origin: 'http://localhost:5173', // React app's URL
+    credentials: true // Allows cookies and authorization headers
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'yourSecretKey', // Use environment variable or default
+    secret: process.env.SESSION_SECRET || 'yourSecretKey',
     resave: false,
     saveUninitialized: true,
+    cookie: { secure: false } // Ensure this is false for development (set to true for HTTPS in production)
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -37,14 +43,15 @@ mongoose.connect(process.env.MONGO_URI, {
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/auth/google/callback",
+    callbackURL: process.env.GOOGLE_CALLBACK_URL,
     scope: ['profile', 'email'],
 }, async (accessToken, refreshToken, profile, cb) => {
     try {
         let user = await User.findOne({ googleId: profile.id });
 
         if (!user) {
-            const referralCode = uuidv4(); // Generate unique referral code for new users
+            // Generate a referral code for the new user
+            const referralCode = uuidv4();
             user = new User({
                 googleId: profile.id,
                 name: profile.displayName,
@@ -59,10 +66,11 @@ passport.use(new GoogleStrategy({
         } else {
             console.log('Existing user found:', user);
         }
-        cb(null, user); // Pass the user to the next middleware
+
+        cb(null, user);
     } catch (err) {
         console.error('Error in Google Strategy:', err);
-        cb(err, null); // Pass the error to the callback
+        cb(new InternalOAuthError('Failed to obtain access token', err), null);
     }
 }));
 
@@ -78,293 +86,94 @@ passport.deserializeUser((id, done) => {
 });
 
 // Routes
-
-// Home route
 app.get('/', (req, res) => {
-    const html = `
-        <h1>Welcome to the Referral System</h1>
-        <a href="/auth/google">Login with Google</a>
-    `;
-    res.send(html);
+    res.send('<h1>Welcome to the Referral System</h1><a href="/auth/google">Login with Google</a>');
 });
 
 // Google login route
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 // Google callback route
-app.get('/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/' }),
-    (req, res) => {
-        res.redirect('/dashboard');
-    }
-);
-
-// Dashboard route
-app.get('/dashboard', async (req, res) => {
-    if (!req.isAuthenticated()) {
-        return res.redirect('/');
-    }
-
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), (req, res) => {
     const user = req.user;
-    const referredUsers = await User.find({ referredBy: user.referralCode });
 
-    const html = `
-        <h1>Referral Dashboard</h1>
-        <h2>Welcome, ${user.name}!</h2>
-        <p>Your Referral Code: <b>${user.referralCode}</b></p>
-        <p>Share your referral link: <a href="http://localhost:3000/auth/google?ref=${user.referralCode}">http://localhost:3000/auth/google?ref=${user.referralCode}</a></p>
-        
-        <h3>Enter Referral Code</h3>
-        <form action="/referral/link" method="POST">
-            <label for="referrerCode">Referral Code:</label>
-            <input type="text" id="referrerCode" name="referrerCode" required>
-            <button type="submit">Submit</button>
-        </form>
+    // Ensure that user data is available after authentication
+    if (!user) {
+        return res.status(401).send('User not authenticated');
+    }
 
-        <h3>Your Referred Users (${referredUsers.length}):</h3>
-        <ul>
-            ${referredUsers.map(u => `<li>${u.name} (${u.email})</li>`).join('')}
-        </ul>
-
-        <br/><a href="/logout">Logout</a>
-    `;
-    res.send(html);
+    // Check if the logged-in user's email matches the admin email
+    if (user.email === process.env.ADMIN_EMAIL) {
+        // Set a session flag to mark the user as admin
+        req.session.isAdmin = true;
+        // Redirect to admin dashboard
+        res.redirect(`http://localhost:5173/admin-dashboard`);
+    } else {
+        // Regular user flow, redirect to user profile
+        res.redirect(`http://localhost:5173/user-profile?name=${user.name}&email=${user.email}&referralCode=${user.referralCode}`);
+    }
 });
 
-// Link referral route
-app.post('/referral/link', async (req, res) => {
-    if (!req.isAuthenticated()) {
-        return res.redirect('/');
-    }
-
-    const { referrerCode } = req.body;
-    const user = req.user;
-
-    if (user.referredBy) {
-        return res.send('You have already been referred by someone.');
-    }
-
+// Route to fetch all users and their downline (referred users) and upline (referredBy)
+app.get('/api/admin/dashboard', async (req, res) => {
     try {
-        const referrer = await User.findOne({ referralCode: referrerCode });
-        if (!referrer) {
-            return res.send('Invalid referral code.');
+        // Fetch all users
+        const users = await User.find().populate('referredUsers').exec();
+
+        // Format the data to show users with their upline and downline
+        const formattedUsers = users.map(user => {
+            return {
+                name: user.name,
+                email: user.email,
+                referralCode: user.referralCode,
+                referredBy: user.referredBy, // Upline
+                referredUsers: user.referredUsers.length, // Number of referred users (downline)
+                referredUsersList: user.referredUsers, // List of referred users
+            };
+        });
+
+        // Send the formatted data to the admin dashboard
+        res.json({ users: formattedUsers });
+    } catch (error) {
+        console.error("Error fetching admin dashboard data:", error);
+        res.status(500).json({ error: "An error occurred while fetching user data" });
+    }
+});
+
+// Referral link submission route (assumes user is authenticated)
+app.post('/referral/link', async (req, res) => {
+    const { referrerCode } = req.body;
+    try {
+        // Check if the user is authenticated
+        const user = req.user; 
+        if (!user) {
+            return res.status(403).json("User not authenticated");
         }
 
+        // Update the current user's referredBy field with the provided referrerCode
         user.referredBy = referrerCode;
-        referrer.referredUsers.push(user.referralCode);
-
         await user.save();
-        await referrer.save();
-
-        console.log(`User ${user.name} referred by ${referrer.name} successfully.`);
-        res.redirect('/dashboard');
-    } catch (err) {
-        console.error('Error linking referral:', err);
-        res.send('An error occurred while linking the referral.');
+        res.json("Referral code linked successfully!");
+    } catch (error) {
+        console.error("Error linking referral code:", error);
+        res.status(500).json({ error: "Error linking referral code" });
     }
 });
 
-// Payment route
-app.post('/pay', async (req, res) => {
-    const { amount, phone, description, userId } = req.body;
-
+// Payment route (example, modify as needed for your payment integration)
+app.post('/payment', async (req, res) => {
+    const { amount, paymentMethod } = req.body;
     try {
-        const paymentResponse = await initiatePayment(amount, userId, phone, description);
-        res.json(paymentResponse);
-    } catch (err) {
-        res.status(500).json({ error: 'Payment failed' });
+        // Handle payment logic (integration with Stripe, PayPal, etc.)
+        res.json({ success: true, message: "Payment processed successfully" });
+    } catch (error) {
+        console.error("Error processing payment:", error);
+        res.status(500).json({ error: "Error processing payment" });
     }
-});
-
-// Payment success callback
-app.post('/payment/success', async (req, res) => {
-    await handlePaymentSuccess(req, res);
-});
-
-// Logout route
-app.get('/logout', (req, res) => {
-    req.logout(err => {
-        if (err) return next(err);
-        res.redirect('/');
-    });
 });
 
 // Start the server
-const PORT = process.env.PORT || 8080; // Change to 8080
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
-                // index.js 
-
-                import React, { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { SectionTitle } from "../components";
-import { toast } from "react-toastify";
-import { useDispatch, useSelector } from "react-redux";
-import { store } from "../store";
-import { loginUser, logoutUser } from "../features/auth/authSlice";
-
-const Login = () => {
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const loginState = useSelector((state) => state.auth.isLoggedIn);
-
-  useEffect(() => {
-    if (loginState) {
-      localStorage.clear();
-      store.dispatch(logoutUser());
-    }
-  }, []);
-
-  // This will trigger the Google Sign-In process
-  const handleGoogleSignIn = () => {
-    window.open("http://localhost:3000/auth/google", "_self"); // Call the backend Google Auth route
-  };
-
-  return (
-    <>
-      <SectionTitle title="Login" path="Home | Login" />
-      <div className="flex flex-col justify-center sm:py-12">
-        <div className="p-10 xs:p-0 mx-auto md:w-full md:max-w-md">
-          <div className="bg-dark border border-gray-600 shadow w-full rounded-lg divide-y divide-gray-200">
-            <div className="px-5 py-7 text-center">
-              {/* Google Sign-In Button */}
-              <button
-                onClick={handleGoogleSignIn}
-                className="transition duration-200 bg-red-600 hover:bg-red-500 focus:bg-red-700 focus:shadow-sm focus:ring-4 focus:ring-red-500 focus:ring-opacity-50 text-white w-full py-2.5 rounded-lg text-sm shadow-sm hover:shadow-md font-semibold text-center inline-block"
-              >
-                <span className="inline-block mr-2">Sign in with Google</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  className="w-4 h-4 inline-block"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M17 8l4 4m0 0l-4 4m4-4H3"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-};
-
-export default Login;
-
-//login.jsx
-
-
-const mongoose = require('mongoose');
-
-const UserSchema = new mongoose.Schema({
-    googleId: String,
-    name: String,
-    email: String,
-    profilePic: String,
-    referralCode: { type: String, unique: true },
-    referredBy: String,
-    referredUsers: [{ type: String }],
-    balance: { type: Number, default: 0 },
-});
-
-const User = mongoose.model('User', UserSchema);
-
-module.exports = User;
- //users.js   
-
-
-
- const User = require('./User'); // Import user model
-
-// Commission calculation and distribution
-async function distributeCommission(userId, amount) {
-    try {
-        const user = await User.findById(userId);
-
-        if (user && user.referredBy) {
-            const referrerB = await User.findOne({ referralCode: user.referredBy });
-
-            if (referrerB) {
-                const commissionB = amount * 0.20; // 20% commission for direct referrer
-                referrerB.balance = (referrerB.balance || 0) + commissionB;
-                await referrerB.save();
-
-                if (referrerB.referredBy) {
-                    const referrerA = await User.findOne({ referralCode: referrerB.referredBy });
-
-                    if (referrerA) {
-                        const commissionA = amount * 0.10; // 10% commission for second-level referrer
-                        referrerA.balance = (referrerA.balance || 0) + commissionA;
-                        await referrerA.save();
-                    }
-                }
-            }
-        }
-    } catch (err) {
-        console.error('Error in distributing commission:', err);
-        throw new Error('Commission distribution failed');
-    }
-}
-
-module.exports = { distributeCommission };
-//commission.js 
-
-
-
-
-
-const axios = require('axios');
-const { v4: uuidv4 } = require('uuid');
-const { distributeCommission } = require('./Commission'); // Import commission logic
-
-// EasyPaisa payment function
-async function initiatePayment(amount, userId, phone, description) {
-    const orderId = uuidv4();
-    const payload = {
-        amount: amount,
-        orderId: orderId,
-        phone: phone,
-        description: description,
-        // ... other required parameters
-    };
-
-    try {
-        const response = await axios.post(process.env.EASYPAY_BASE_URL, payload, {
-            headers: {
-                'Authorization': `Bearer ${process.env.EASYPAY_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        await distributeCommission(userId, amount); // Distribute commission after payment initiation
-        return response.data;
-    } catch (error) {
-        console.error('Error initiating payment:', error.response.data);
-        throw new Error('Payment initiation failed');
-    }
-}
-
-// Payment success handling
-async function handlePaymentSuccess(req, res) {
-    const { amount, userId } = req.body; // Adjust according to the success response
-    // You might need to perform additional validation here based on your payment provider's response
-
-    try {
-        await distributeCommission(userId, amount); // Distribute commission upon successful payment
-        res.status(200).json({ success: true, message: 'Payment was successful' });
-    } catch (err) {
-        console.error('Error handling payment success:', err);
-        res.status(500).json({ success: false, message: 'Error handling payment success' });
-    }
-}
-
-module.exports = { initiatePayment, handlePaymentSuccess };
- //order.js

@@ -16,6 +16,7 @@ import {
   ThankYou,
   OrderHistory,
 } from "./pages";
+import AdminDashboard from "./pages/AdminDashboard";
 import { landingLoader } from "./pages/Landing";
 import { singleProductLoader } from "./pages/SingleProduct";
 import { shopLoader } from "./pages/Shop";
@@ -90,6 +91,10 @@ const router = createBrowserRouter([
         path: "user-profile", // Add a specific route for user profile
         element: <Profile />,
       },
+      {
+        path: "admin-dashboard",  // Path for the Admin Dashboard page
+        element: <AdminDashboard />,  // Component to render for this route
+    }
     ],
   },
 ]);
